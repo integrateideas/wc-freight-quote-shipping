@@ -77,8 +77,8 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                      'title' => array(
                         'title' => __( 'Title', 'freight' ),
                           'type' => 'text',
-                          'description' => __( 'Title to be display on site', 'freight' ),
-                          'default' => __( 'Freight Shipping', 'freight' )
+                          'description' => __( 'Title to be displayed on site', 'freight' ),
+                          'default' => __( 'Freight Quote Shipping', 'freight' )
                           ),
                      'username' => array(
                           'title' => __( 'Username', 'freight' ),
@@ -155,11 +155,30 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                     if(isset($package["destination"])&&$package["destination"]['postcode']&&$package["destination"]['country']){
                       $freightquote = new Freightquote($credentails);
 
+                      $requests = [];
                       foreach ( $package['contents'] as $item_id => $values ) 
                       { 
                         $_product = $values['data']; 
+                        $zipcode = $_product->get_attribute('pa_'.$settings['zipcode_field']) ? $_product->get_attribute('pa_'.$settings['zipcode_field']) : $settings['zipcode'];
 
-                        $request = array(
+                        $product = [
+                          'Weight' => $_product->get_weight(),
+                          'Length' => $_product->get_length(),
+                          'Height' => $_product->get_height(),
+                          'Width' => $_product->get_width(),
+                          'ProductDescription' => $_product->get_name(),
+                          'PackageType' => 'Boxes',
+                          'ContentType' => 'NewCommercialGoods',
+                          'IsHazardousMaterial' => 'false',
+                          'PieceCount' => $values['quantity'],
+                        ];
+
+                        if(isset($requests[$zipcode])){
+                          $requests[$zipcode]['QuoteShipment']['ShipmentProducts']['Product'][] = $product;
+                          continue;
+                        }
+
+                        $requests[$zipcode] = array(
                           'CustomerId'=> $settings['username'],
                           'QuoteType' => 'B2B',
                           'ServiceType' => 'LTL',
@@ -170,7 +189,7 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                                       array(
                                           'LocationType' => 'Origin',
                                           'LocationAddress' => array(
-                                              'PostalCode' => $_product->get_attribute('pa_'.$settings['zipcode_field']) ? $_product->get_attribute('pa_'.$settings['zipcode_field']) : $settings['zipcode'],
+                                              'PostalCode' => $zipcode,
                                               'CountryCode' => $countries->get_base_country(),
                                           ),
                                       ),
@@ -185,20 +204,14 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                                   ),
                               ),
                               'ShipmentProducts' => array(
-                                  'Product' => array(
-                                    'Weight' => $_product->get_weight(),
-                                    'Length' => $_product->get_length(),
-                                    'Height' => $_product->get_height(),
-                                    'Width' => $_product->get_width(),
-                                    'ProductDescription' => $_product->get_name(),
-                                    'PackageType' => 'Boxes',
-                                    'ContentType' => 'NewCommercialGoods',
-                                    'IsHazardousMaterial' => 'false',
-                                    'PieceCount' => $values['quantity'],
-                                  )
+                                  'Product' => [$product]
                               ),
                           ),
                         );
+                      
+                      }
+
+                      foreach ($requests as $request) {
                         $response = $freightquote->getQuotes($request);
                         // echo "<pre>";print_r($response);echo "</pre>";die();
 
@@ -212,8 +225,8 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
                               wc_add_notice( $message, $messageType );
                           }
                         }
-                      
                       }
+
                       if($cost){
 
                         $rate = array(
